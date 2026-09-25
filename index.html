@@ -1,258 +1,226 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>finding the next 1000x</title>
-
-  <script src="https://cdn.jsdelivr.net/npm/ethers@6.15.0/dist/ethers.umd.min.js"></script>
-
-  <style>
-    body {
-      margin: 0;
-      background: #111;
-      color: white;
-      font-family: Arial, sans-serif;
-      text-align: center;
-      padding: 30px 15px;
-    }
-
-    .card {
-      max-width: 420px;
-      margin: auto;
-      background: #1c1c1c;
-      padding: 25px;
-      border-radius: 20px;
-    }
-
-    img {
-      width: 100%;
-      border-radius: 15px;
-      margin-bottom: 20px;
-    }
-
-    h1 {
-      font-size: 26px;
-    }
-
-    p {
-      color: #aaa;
-    }
-
-    button {
-      width: 100%;
-      padding: 15px;
-      margin-top: 12px;
-      border: 0;
-      border-radius: 12px;
-      font-size: 17px;
-      font-weight: bold;
-      cursor: pointer;
-    }
-
-    #connect {
-      background: #555;
-      color: white;
-    }
-
-    #mint {
-      background: #fff;
-      color: #000;
-    }
-
-    #status {
-      margin-top: 15px;
-      word-break: break-word;
-      color: #aaa;
-    }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>finding the next 1000x</title>
+<script src="https://cdn.jsdelivr.net/npm/ethers@6.13.5/dist/ethers.umd.min.js"></script>
+<style>
+body{margin:0;background:#111;color:#fff;font-family:Arial;text-align:center}
+.card{max-width:560px;margin:40px auto;padding:35px 22px;background:#1d1d1d;border-radius:25px}
+img{width:100%;max-width:420px;border-radius:18px}
+h1{font-size:34px}
+.sub{color:#aaa;font-size:20px;margin:15px}
+button{width:100%;padding:18px;margin-top:14px;border:0;border-radius:16px;font-size:18px;font-weight:bold;cursor:pointer}
+input{box-sizing:border-box;width:100%;padding:16px;margin-top:10px;border-radius:12px;border:0;font-size:16px}
+#creator{display:none;margin-top:30px;padding-top:25px;border-top:1px solid #444}
+.status{margin:20px 0;color:#bbb}
+</style>
 </head>
 
 <body>
-
 <div class="card">
 
-  <img
-    src="https://drive.google.com/uc?export=download&id=1LsC4eG-onfqakN3gfZtgK_Uc41WyjOnh"
-    alt="finding the next 1000x"
-  >
+<img src="https://drive.google.com/uc?export=download&id=1LsC4eG-onfqakN3gfZtgK_Uc41WyjOnh"
+     onerror="this.style.display='none'">
 
-  <h1>finding the next 1000x</h1>
+<h1>finding the next 1000x</h1>
+<div class="sub">by diewiththemostlikes</div>
+<div class="sub">FREE MINT<br>100 editions</div>
 
-  <p>by diewiththemostlikes</p>
+<div class="status">
+<span id="minted">0</span> / 100 minted ·
+<span id="remaining">100</span> remaining
+</div>
 
-  <p>
-    FREE MINT<br>
-    100 editions
-  </p>
+<button id="connect" onclick="connectWallet()">Connect Wallet</button>
+<button onclick="publicMint()">Mint 1 — FREE</button>
 
-  <p id="supply">Loading supply...</p>
+<div id="creator">
+<h2>Creator — Mint to Wallet Lain</h2>
 
-  <button id="connect">Connect Wallet</button>
+<input id="recipient"
+       placeholder="Wallet penerima 0x...">
 
-  <button id="mint" disabled>Mint 1 — FREE</button>
+<input id="quantity"
+       type="number"
+       min="1"
+       value="1"
+       placeholder="Jumlah NFT">
 
-  <div id="status"></div>
+<button onclick="mintToWallet()">Mint to Wallet Lain</button>
+</div>
+
+<div id="message" class="status"></div>
 
 </div>
 
 <script>
-const CONTRACT =
-  "0xf8A74270095FfC058BCeB0dc0EE925b15d3b7c36";
-
+const CONTRACT = "0xf8A74270095FfC058BCeB0dc0EE925b15d3b7c36";
+const OWNER = "0xD43ee4Da15a1648d6934f54F1C69C50fc029F415";
 const BASE_CHAIN_ID = "0x2105";
 
 const ABI = [
   "function mint(uint256 quantity)",
-  "function totalMinted() view returns (uint256)",
-  "function remainingSupply() view returns (uint256)"
+  "function mintTo(address recipient,uint256 quantity)",
+  "function totalMinted() view returns(uint256)",
+  "function remainingSupply() view returns(uint256)",
+  "function owner() view returns(address)"
 ];
 
 let provider;
 let signer;
 let contract;
 
-const connectButton = document.getElementById("connect");
-const mintButton = document.getElementById("mint");
-const statusBox = document.getElementById("status");
-const supplyBox = document.getElementById("supply");
-
-async function connectWallet() {
-
-  if (!window.ethereum) {
-    statusBox.innerText =
-      "Wallet tidak ditemukan. Buka dengan MetaMask atau wallet yang mendukung browser.";
-    return;
-  }
-
-  try {
-
-    await window.ethereum.request({
-      method: "wallet_switchEthereumChain",
-      params: [{ chainId: BASE_CHAIN_ID }]
-    });
-
-  } catch (switchError) {
-
-    if (switchError.code === 4902) {
-
-      await window.ethereum.request({
-        method: "wallet_addEthereumChain",
-        params: [{
-          chainId: BASE_CHAIN_ID,
-          chainName: "Base",
-          nativeCurrency: {
-            name: "Ether",
-            symbol: "ETH",
-            decimals: 18
-          },
-          rpcUrls: ["https://mainnet.base.org"],
-          blockExplorerUrls: ["https://basescan.org"]
-        }]
-      });
-
-    } else {
-      statusBox.innerText = switchError.message;
+async function connectWallet(){
+  try{
+    if(!window.ethereum){
+      alert("Wallet tidak ditemukan. Buka dengan browser wallet.");
       return;
     }
+
+    await ethereum.request({method:"eth_requestAccounts"});
+
+    try{
+      await ethereum.request({
+        method:"wallet_switchEthereumChain",
+        params:[{chainId:BASE_CHAIN_ID}]
+      });
+    }catch(e){
+      if(e.code === 4902){
+        await ethereum.request({
+          method:"wallet_addEthereumChain",
+          params:[{
+            chainId:BASE_CHAIN_ID,
+            chainName:"Base",
+            nativeCurrency:{
+              name:"Ether",
+              symbol:"ETH",
+              decimals:18
+            },
+            rpcUrls:["https://mainnet.base.org"],
+            blockExplorerUrls:["https://basescan.org"]
+          }]
+        });
+      }else{
+        throw e;
+      }
+    }
+
+    provider = new ethers.BrowserProvider(window.ethereum);
+    signer = await provider.getSigner();
+    contract = new ethers.Contract(CONTRACT, ABI, signer);
+
+    const address = await signer.getAddress();
+
+    document.getElementById("connect").innerText =
+      address.slice(0,6)+"..."+address.slice(-4);
+
+    if(address.toLowerCase() === OWNER.toLowerCase()){
+      document.getElementById("creator").style.display = "block";
+      show("Creator terdeteksi — fitur Mint to Wallet Lain aktif.");
+    }else{
+      show("Wallet terhubung. Public Mint tersedia.");
+    }
+
+    await updateSupply();
+
+  }catch(e){
+    show("Error: " + (e.shortMessage || e.message));
   }
-
-  provider = new ethers.BrowserProvider(window.ethereum);
-  signer = await provider.getSigner();
-
-  contract = new ethers.Contract(
-    CONTRACT,
-    ABI,
-    signer
-  );
-
-  const address = await signer.getAddress();
-
-  connectButton.innerText =
-    address.slice(0, 6) + "..." + address.slice(-4);
-
-  mintButton.disabled = false;
-
-  statusBox.innerText = "Wallet connected.";
 }
 
-async function loadSupply() {
+async function publicMint(){
+  try{
+    if(!contract) await connectWallet();
+    if(!contract) return;
 
-  try {
-
-    const readProvider =
-      new ethers.JsonRpcProvider("https://mainnet.base.org");
-
-    const readContract =
-      new ethers.Contract(
-        CONTRACT,
-        ABI,
-        readProvider
-      );
-
-    const remaining =
-      await readContract.remainingSupply();
-
-    const minted =
-      await readContract.totalMinted();
-
-    supplyBox.innerText =
-      `${minted.toString()} / 100 minted • ${remaining.toString()} remaining`;
-
-  } catch (e) {
-
-    supplyBox.innerText =
-      "Supply belum bisa dibaca.";
-  }
-}
-
-async function mintNFT() {
-
-  if (!contract) {
-    await connectWallet();
-    return;
-  }
-
-  try {
-
-    mintButton.disabled = true;
-    statusBox.innerText = "Menunggu konfirmasi wallet...";
+    show("Menunggu konfirmasi wallet...");
 
     const tx = await contract.mint(1);
 
-    statusBox.innerText =
-      "Transaksi dikirim. Menunggu konfirmasi...";
+    show("Transaksi dikirim: " + tx.hash);
 
     await tx.wait();
 
-    statusBox.innerHTML =
-      "Mint berhasil!<br>" +
-      "TX: " +
-      tx.hash;
+    show("Mint berhasil! NFT masuk ke wallet kamu.");
+    await updateSupply();
 
-    await loadSupply();
-
-  } catch (error) {
-
-    console.error(error);
-
-    statusBox.innerText =
-      error.shortMessage ||
-      error.message ||
-      "Mint gagal.";
-
-  } finally {
-
-    mintButton.disabled = false;
+  }catch(e){
+    show("Mint gagal: " + (e.shortMessage || e.message));
   }
 }
 
-connectButton.onclick = connectWallet;
-mintButton.onclick = mintNFT;
+async function mintToWallet(){
+  try{
+    if(!contract) await connectWallet();
+    if(!contract) return;
 
-loadSupply();
+    const recipient =
+      document.getElementById("recipient").value.trim();
 
+    const quantity =
+      document.getElementById("quantity").value;
+
+    if(!ethers.isAddress(recipient)){
+      show("Alamat wallet tidak valid.");
+      return;
+    }
+
+    if(Number(quantity) < 1){
+      show("Jumlah harus minimal 1.");
+      return;
+    }
+
+    show("Menunggu konfirmasi creator...");
+
+    const tx = await contract.mintTo(
+      recipient,
+      Number(quantity)
+    );
+
+    show("Transaksi dikirim: " + tx.hash);
+
+    await tx.wait();
+
+    show("Berhasil mint " + quantity +
+         " NFT ke " + recipient);
+
+    await updateSupply();
+
+  }catch(e){
+    show("Mint to wallet gagal: " +
+         (e.shortMessage || e.message));
+  }
+}
+
+async function updateSupply(){
+  try{
+    if(!provider)
+      provider = new ethers.JsonRpcProvider("https://mainnet.base.org");
+
+    const readContract =
+      new ethers.Contract(CONTRACT, ABI, provider);
+
+    const minted = await readContract.totalMinted();
+    const remaining = await readContract.remainingSupply();
+
+    document.getElementById("minted").innerText =
+      minted.toString();
+
+    document.getElementById("remaining").innerText =
+      remaining.toString();
+
+  }catch(e){
+    console.log(e);
+  }
+}
+
+function show(text){
+  document.getElementById("message").innerText = text;
+}
+
+updateSupply();
 </script>
-
 </body>
 </html>
